@@ -43,6 +43,7 @@ CPPSRC += $(TARGET_SRC_PATH)/usb_endp.cpp
 CPPSRC += $(TARGET_SRC_PATH)/usb_istr.cpp
 CPPSRC += $(TARGET_SRC_PATH)/usb_prop.cpp
 CPPSRC += $(TARGET_SRC_PATH)/wifi_credentials_reader.cpp
+CPPSRC += $(TARGET_SRC_PATH)/idDHT22.cpp
 
 # ASM source files included in this build.
 ASRC +=

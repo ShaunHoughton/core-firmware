@@ -1,174 +1,217 @@
-/**
- ******************************************************************************
- * @file    application.cpp
- * @authors  Satish Nair, Zachary Crockett and Mohit Bhoite
- * @version V1.0.0
- * @date    05-November-2013
- * @brief   Tinker application
- ******************************************************************************
-  Copyright (c) 2013 Spark Labs, Inc.  All rights reserved.
+// This #include statement was automatically added by the Spark IDE.
+#include "idDHT22.h"
 
-  This program is free software; you can redistribute it and/or
-  modify it under the terms of the GNU Lesser General Public
-  License as published by the Free Software Foundation, either
-  version 3 of the License, or (at your option) any later version.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-  Lesser General Public License for more details.
+// declaration for DHT11 handler
+int idDHT22pin = D4; //Digital pin for comunications
+int DoorPin = D0;
 
-  You should have received a copy of the GNU Lesser General Public
-  License along with this program; if not, see <http://www.gnu.org/licenses/>.
- ******************************************************************************
- */
 
-/* Includes ------------------------------------------------------------------*/  
-#include "application.h"
+void dht22_wrapper(); // must be declared before the lib initialization
+double TempC, TempF, Humid, DewP;
+int DoorState = HIGH;
+boolean DoorStateChanged = false;
 
-/* Function prototypes -------------------------------------------------------*/
-int tinkerDigitalRead(String pin);
-int tinkerDigitalWrite(String command);
-int tinkerAnalogRead(String pin);
-int tinkerAnalogWrite(String command);
+//Default SensorTime to 30sec
+unsigned long SensorPollTime = 10000;
+unsigned long SensorTimer = millis();
+unsigned long CurrentMilliSec = 0;
 
-/* This function is called once at start up ----------------------------------*/
+//Setup debounce time
+volatile unsigned long DebounceTimer = 0;
+int DebounceMilliSec = 100;
+
+//Setup action constants
+const int PwrOn = 1;
+const int PwrOff = 2;
+const int PwrCycle = 3;
+
+// DHT instantiate
+idDHT22 DHT22(idDHT22pin, dht22_wrapper);
+
+//Function templates
+void PollSensors();
+void PollDoor();
+void DoorStateChange();
+int PowerControl(String Command);
+
+
+
+
 void setup()
 {
-	//Setup the Tinker application here
-
-	//Register all the Tinker functions
-	Spark.function("digitalread", tinkerDigitalRead);
-	Spark.function("digitalwrite", tinkerDigitalWrite);
-
-	Spark.function("analogread", tinkerAnalogRead);
-	Spark.function("analogwrite", tinkerAnalogWrite);
-
+    pinMode(DoorPin,INPUT_PULLUP);
+    attachInterrupt(DoorPin, PollDoor, CHANGE);
+    
+	Serial.begin(115200);
+	
+	Serial.println("idDHT22 Example program");
+	Serial.print("LIB version: ");
+	Serial.println(idDHT22LIB_VERSION);
+	Serial.println("---------------");
+    
+    //Setup external variables
+    Spark.variable("TemperatureC", &TempC, DOUBLE);
+    Spark.variable("DewPoint", &DewP, DOUBLE);
+    Spark.variable("Humidity", &Humid, DOUBLE);
+    Spark.variable("DoorState", &DoorState, INT);
+    
+    //Setup external functions
+    Spark.function("Power", PowerControl);
 }
 
-/* This function loops forever --------------------------------------------*/
+// This wrapper is in charge of calling
+// must be defined like this for the lib work
+void dht22_wrapper()
+{
+	DHT22.isrCallback();
+}
+
 void loop()
 {
-	//This will run in a loop
+    
+    // check to see if timer has rolled over
+    if (SensorTimer > millis())
+    {
+        SensorTimer = 0;
+    }
+    
+    // check sensors as per timer setting
+    if (millis() - SensorTimer > SensorPollTime)
+    {
+        PollSensors();
+        SensorTimer = millis();
+    }
+    
+    if (DoorStateChanged)
+    {
+        DoorStateChanged = false;
+        Serial.print("Time to log door state change: ");
+        Serial.println(millis() - CurrentMilliSec);
+        
+        if (DoorState == HIGH)
+        {
+            Serial.println("Door Opened");
+            Spark.publish("Door-State", "Open", 60, PRIVATE);
+            
+        } else
+        {
+            Serial.println("Door Closed");
+            Spark.publish("Door-State", "Closed", 60, PRIVATE);
+        }
+    }
 }
 
-/*******************************************************************************
- * Function Name  : tinkerDigitalRead
- * Description    : Reads the digital value of a given pin
- * Input          : Pin 
- * Output         : None.
- * Return         : Value of the pin (0 or 1) in INT type
-                    Returns a negative number on failure
- *******************************************************************************/
-int tinkerDigitalRead(String pin)
+int PowerControl(String Command)
 {
-	//convert ascii to integer
-	int pinNumber = pin.charAt(1) - '0';
-	//Sanity check to see if the pin numbers are within limits
-	if (pinNumber< 0 || pinNumber >7) return -1;
-
-	if(pin.startsWith("D"))
-	{
-		pinMode(pinNumber, INPUT_PULLDOWN);
-		return digitalRead(pinNumber);
-	}
-	else if (pin.startsWith("A"))
-	{
-		pinMode(pinNumber+10, INPUT_PULLDOWN);
-		return digitalRead(pinNumber+10);
-	}
-	return -2;
+    char MessageString[60];
+    Serial.print("Command = ");
+    Serial.println(Command);
+    String StrOutletNo = Command.substring(0,1);
+    int OutletNo = StrOutletNo.toInt();
+    String Action = Command.substring(2);
+    int ActionNo = Action.toInt();
+//    Serial.print("Outlet: ");
+//    Serial.print(StrOutletNo);
+//    Serial.print(" ");
+//    Serial.println(OutletNo);
+//    Serial.print("Action: ");
+//    Serial.println(Action);
+    sprintf(MessageString,"Outlet is %d Action is %d\n",OutletNo,ActionNo);
+    Serial.println(MessageString);
+    
+    switch (ActionNo)
+    {
+        case PwrOn:
+            Serial.println("On");
+            break;
+        
+        case PwrOff:
+            Serial.println("Off");
+            break;
+            
+        case PwrCycle:
+            Serial.println("Cycle");
+            break;
+            
+        default:
+            break;
+    }
+    
+    return 1;
 }
 
-/*******************************************************************************
- * Function Name  : tinkerDigitalWrite
- * Description    : Sets the specified pin HIGH or LOW
- * Input          : Pin and value
- * Output         : None.
- * Return         : 1 on success and a negative number on failure
- *******************************************************************************/
-int tinkerDigitalWrite(String command)
+void PollDoor()
 {
-	bool value = 0;
-	//convert ascii to integer
-	int pinNumber = command.charAt(1) - '0';
-	//Sanity check to see if the pin numbers are within limits
-	if (pinNumber< 0 || pinNumber >7) return -1;
-
-	if(command.substring(3,7) == "HIGH") value = 1;
-	else if(command.substring(3,6) == "LOW") value = 0;
-	else return -2;
-
-	if(command.startsWith("D"))
-	{
-		pinMode(pinNumber, OUTPUT);
-		digitalWrite(pinNumber, value);
-		return 1;
-	}
-	else if(command.startsWith("A"))
-	{
-		pinMode(pinNumber+10, OUTPUT);
-		digitalWrite(pinNumber+10, value);
-		return 1;
-	}
-	else return -3;
+    CurrentMilliSec = millis();
+    
+    Serial.println(DebounceTimer);
+    
+    if (CurrentMilliSec > DebounceTimer)
+    {
+        DebounceTimer  = CurrentMilliSec + DebounceMilliSec;
+        
+        DoorState = digitalRead(DoorPin);
+        DoorStateChanged = true;
+    }
+    
 }
 
-/*******************************************************************************
- * Function Name  : tinkerAnalogRead
- * Description    : Reads the analog value of a pin
- * Input          : Pin 
- * Output         : None.
- * Return         : Returns the analog value in INT type (0 to 4095)
-                    Returns a negative number on failure
- *******************************************************************************/
-int tinkerAnalogRead(String pin)
+void PollSensors()
 {
-	//convert ascii to integer
-	int pinNumber = pin.charAt(1) - '0';
-	//Sanity check to see if the pin numbers are within limits
-	if (pinNumber< 0 || pinNumber >7) return -1;
-
-	if(pin.startsWith("D"))
+    Serial.print("\nRetrieving information from sensor: ");
+	Serial.print("Read sensor: ");
+	//delay(100);
+	DHT22.acquire();
+	while (DHT22.acquiring())
+		;
+	int result = DHT22.getStatus();
+	switch (result)
 	{
-		pinMode(pinNumber, INPUT);
-		return analogRead(pinNumber);
+		case IDDHTLIB_OK:
+			Serial.println("OK");
+			break;
+		case IDDHTLIB_ERROR_CHECKSUM:
+			Serial.println("Error\n\r\tChecksum error");
+			break;
+		case IDDHTLIB_ERROR_ISR_TIMEOUT:
+			Serial.println("Error\n\r\tISR Time out error");
+			break;
+		case IDDHTLIB_ERROR_RESPONSE_TIMEOUT:
+			Serial.println("Error\n\r\tResponse time out error");
+			break;
+		case IDDHTLIB_ERROR_DATA_TIMEOUT:
+			Serial.println("Error\n\r\tData time out error");
+			break;
+		case IDDHTLIB_ERROR_ACQUIRING:
+			Serial.println("Error\n\r\tAcquiring");
+			break;
+		case IDDHTLIB_ERROR_DELTA:
+			Serial.println("Error\n\r\tDelta time to small");
+			break;
+		case IDDHTLIB_ERROR_NOTSTARTED:
+			Serial.println("Error\n\r\tNot started");
+			break;
+		default:
+			Serial.println("Unknown error");
+			break;
 	}
-	else if (pin.startsWith("A"))
-	{
-		pinMode(pinNumber+10, INPUT);
-		return analogRead(pinNumber+10);
-	}
-	return -2;
-}
-
-/*******************************************************************************
- * Function Name  : tinkerAnalogWrite
- * Description    : Writes an analog value (PWM) to the specified pin
- * Input          : Pin and Value (0 to 255)
- * Output         : None.
- * Return         : 1 on success and a negative number on failure
- *******************************************************************************/
-int tinkerAnalogWrite(String command)
-{
-	//convert ascii to integer
-	int pinNumber = command.charAt(1) - '0';
-	//Sanity check to see if the pin numbers are within limits
-	if (pinNumber< 0 || pinNumber >7) return -1;
-
-	String value = command.substring(3);
-
-	if(command.startsWith("D"))
-	{
-		pinMode(pinNumber, OUTPUT);
-		analogWrite(pinNumber, value.toInt());
-		return 1;
-	}
-	else if(command.startsWith("A"))
-	{
-		pinMode(pinNumber+10, OUTPUT);
-		analogWrite(pinNumber+10, value.toInt());
-		return 1;
-	}
-	else return -2;
+	
+    Humid = DHT22.getHumidity();
+    Serial.print("Humidity (%): ");
+	Serial.println(Humid, 2);
+    
+    TempC = DHT22.getCelsius();
+    Serial.print("Temperature (oC): ");
+	Serial.println(TempC, 2);
+    
+	DewP = DHT22.getDewPoint();
+    Serial.print("Dew Point (oC): ");
+	Serial.println(DewP);
+    
+    DoorState = digitalRead(DoorPin);
+    Serial.print("Door State: ");
+	Serial.println(DoorState);
+    
+    
 }
