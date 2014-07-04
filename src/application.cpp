@@ -9,6 +9,7 @@ int DoorPin = D0;
 
 void dht22_wrapper(); // must be declared before the lib initialization
 double AmbTempCurrent, HumidityCurrent;
+int AmbTempHigh, AmbHumiHigh;
 int DoorState = LOW;
 boolean DoorStateChanged = false;
 
@@ -34,6 +35,7 @@ void PollSensors();
 void PollDoor();
 void DoorStateChange();
 int PowerControl(String Command);
+int SetSensorParams(String Command);
 
 
 
@@ -56,6 +58,7 @@ void setup()
     
     //Setup external functions
     Spark.function("Power", PowerControl);
+    Spark.function("SensorParams",SetSensorParams);
 }
 
 // This wrapper is in charge of calling
@@ -99,6 +102,42 @@ void loop()
         }
     }
 }
+                   
+int SetSensorParams(String Command)
+{
+    char MessageString[50];
+    Serial.print("Command = ");
+    Serial.println(Command);
+    int CommaAt = Command.indexOf(',');
+    String StrSensor = Command.substring(0,CommaAt);
+    String StrValue = Command.substring(CommaAt+1);
+    double IntValue = StrValue.toInt();
+    
+    Serial.print("Sensor: ");
+    Serial.println(StrSensor);
+    Serial.print("String Value: ");
+    Serial.println(StrValue);
+    Serial.print("Value: ");
+    Serial.println(IntValue);
+    
+//    sprintf(MessageString,"Sensor is %s Value is %d\n",StrSensor, IntValue);
+//    Serial.println(MessageString);
+    
+    if (StrSensor.compareTo("AmbTempHigh") == 0)
+    {
+        AmbTempHigh = IntValue;
+        return 1;
+    } else if (StrSensor.compareTo("AmbHumiHigh") == 0)
+    {
+        AmbHumiHigh = IntValue;
+        return 1;
+    } else
+    {
+        return -1;
+    }
+
+}
+
 
 int PowerControl(String Command)
 {
@@ -199,10 +238,14 @@ void PollSensors()
     HumidityCurrent = DHT22.getHumidity();
     Serial.print("Humidity (%): ");
 	Serial.println(HumidityCurrent, 2);
+    Serial.print("Humidity High Limit(%): ");
+	Serial.println(AmbHumiHigh);
     
     AmbTempCurrent = DHT22.getCelsius();
     Serial.print("Temperature (oC): ");
 	Serial.println(AmbTempCurrent, 2);
+    Serial.print("Temperature High Limit(oC): ");
+	Serial.println(AmbTempHigh);
     
     
     DoorState = digitalRead(DoorPin);
