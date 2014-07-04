@@ -1,4 +1,4 @@
-// This #include statement was automatically added by the Spark IDE.
+
 #include "idDHT22.h"
 
 
@@ -8,8 +8,8 @@ int DoorPin = D0;
 
 
 void dht22_wrapper(); // must be declared before the lib initialization
-double TempC, TempF, Humid, DewP;
-int DoorState = HIGH;
+double AmbTempCurrent, HumidityCurrent;
+int DoorState = LOW;
 boolean DoorStateChanged = false;
 
 //Default SensorTime to 30sec
@@ -37,7 +37,6 @@ int PowerControl(String Command);
 
 
 
-
 void setup()
 {
     pinMode(DoorPin,INPUT_PULLUP);
@@ -51,9 +50,8 @@ void setup()
 	Serial.println("---------------");
     
     //Setup external variables
-    Spark.variable("TemperatureC", &TempC, DOUBLE);
-    Spark.variable("DewPoint", &DewP, DOUBLE);
-    Spark.variable("Humidity", &Humid, DOUBLE);
+    Spark.variable("Ambient_Temperature", &AmbTempCurrent, DOUBLE);
+    Spark.variable("HumidityCurrentity", &HumidityCurrent, DOUBLE);
     Spark.variable("DoorState", &DoorState, INT);
     
     //Setup external functions
@@ -150,7 +148,6 @@ void PollDoor()
     if (CurrentMilliSec > DebounceTimer)
     {
         DebounceTimer  = CurrentMilliSec + DebounceMilliSec;
-        
         DoorState = digitalRead(DoorPin);
         DoorStateChanged = true;
     }
@@ -159,6 +156,8 @@ void PollDoor()
 
 void PollSensors()
 {
+    char SensorData[75];
+    
     Serial.print("\nRetrieving information from sensor: ");
 	Serial.print("Read sensor: ");
 	//delay(100);
@@ -197,21 +196,20 @@ void PollSensors()
 			break;
 	}
 	
-    Humid = DHT22.getHumidity();
+    HumidityCurrent = DHT22.getHumidity();
     Serial.print("Humidity (%): ");
-	Serial.println(Humid, 2);
+	Serial.println(HumidityCurrent, 2);
     
-    TempC = DHT22.getCelsius();
+    AmbTempCurrent = DHT22.getCelsius();
     Serial.print("Temperature (oC): ");
-	Serial.println(TempC, 2);
+	Serial.println(AmbTempCurrent, 2);
     
-	DewP = DHT22.getDewPoint();
-    Serial.print("Dew Point (oC): ");
-	Serial.println(DewP);
     
     DoorState = digitalRead(DoorPin);
     Serial.print("Door State: ");
 	Serial.println(DoorState);
     
+    sprintf(SensorData,"{\"Ambient_Temperature\":%.2f, \"Humidity\":%.2f}",AmbTempCurrent,HumidityCurrent);
+    Spark.publish("SensorData",SensorData);
     
 }
