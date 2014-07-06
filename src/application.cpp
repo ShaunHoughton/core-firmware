@@ -27,6 +27,10 @@ const int PwrOn = 1;
 const int PwrOff = 2;
 const int PwrCycle = 3;
 
+//Setup message strings
+char SensorData[75];
+char MessageString[70];
+
 // DHT instantiate
 idDHT22 DHT22(idDHT22pin, dht22_wrapper);
 
@@ -89,23 +93,25 @@ void loop()
         DoorStateChanged = false;
         Serial.print("Time to log door state change: ");
         Serial.println(millis() - CurrentMilliSec);
+        sprintf(SensorData,"{\"Ambient_Temperature\":%.2f, \"Humidity\":%.2f,\"Door_State\":%d}",AmbTempCurrent, HumidityCurrent, DoorState);
+        Spark.publish("SensorData",SensorData);
         
-        if (DoorState == HIGH)
-        {
-            Serial.println("Door Opened");
-            Spark.publish("Door-State", "Open", 60, PRIVATE);
-            
-        } else
-        {
-            Serial.println("Door Closed");
-            Spark.publish("Door-State", "Closed", 60, PRIVATE);
-        }
+//        if (DoorState == HIGH)
+//        {
+//            Serial.println("Door Opened");
+//            Spark.publish("Door-State", "Open", 60, PRIVATE);
+//            
+//        } else
+//        {
+//            Serial.println("Door Closed");
+//            Spark.publish("Door-State", "Closed", 60, PRIVATE);
+//        }
     }
 }
                    
 int SetSensorParams(String Command)
 {
-    char MessageString[50];
+    char MessageString[70];
     Serial.print("Command = ");
     Serial.println(Command);
     int CommaAt = Command.indexOf(',');
@@ -195,12 +201,13 @@ void PollDoor()
 
 void PollSensors()
 {
-    char SensorData[75];
+    
     
     Serial.print("\nRetrieving information from sensor: ");
 	Serial.print("Read sensor: ");
 	//delay(100);
 	DHT22.acquire();
+    Serial.println("DHT22 acquired.");
 	while (DHT22.acquiring())
 		;
 	int result = DHT22.getStatus();
@@ -252,7 +259,17 @@ void PollSensors()
     Serial.print("Door State: ");
 	Serial.println(DoorState);
     
-    sprintf(SensorData,"{\"Ambient_Temperature\":%.2f, \"Humidity\":%.2f}",AmbTempCurrent,HumidityCurrent);
+    sprintf(SensorData,"{\"Ambient_Temperature\":%.2f, \"Humidity\":%.2f,\"Door_State\":%d}",AmbTempCurrent, HumidityCurrent, DoorState);
     Spark.publish("SensorData",SensorData);
+    
+    //Calculate and print out time
+    unsigned long now = millis();
+    unsigned nowSec = now/1000UL;
+    unsigned sec = nowSec%60;
+    unsigned min = (nowSec%3600)/60;
+    unsigned hours = (nowSec%86400)/3600;
+    
+    sprintf(MessageString,"{ Uptime: \"Hours\": %u, \"Minutes\": %u, \"Seconds\": %u}",hours,min,sec);
+    Serial.println(MessageString);
     
 }
