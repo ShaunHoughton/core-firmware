@@ -1,6 +1,10 @@
 
 #include "idDHT22.h"
 
+#define FEED_ID "1578961704"
+#define XIVELY_API_KEY "IdehYY7vePi6Gf365Chtpidju7fh9xMFI2HpxEgD6oijrahQ"
+#define SendToXively "Yes"
+
 
 // declaration for DHT11 handler
 int idDHT22pin = D4; //Digital pin for comunications
@@ -8,6 +12,8 @@ int DoorPin = D0;
 
 
 void dht22_wrapper(); // must be declared before the lib initialization
+
+//Setup sensor monitoring and control variables
 double AmbTempCurrent, HumidityCurrent;
 int AmbTempHigh, AmbHumiHigh;
 int DoorState = LOW;
@@ -40,6 +46,9 @@ void PollDoor();
 void DoorStateChange();
 int PowerControl(String Command);
 int SetSensorParams(String Command);
+int SendtoXively();
+
+TCPClient client;
 
 
 
@@ -86,6 +95,8 @@ void loop()
     {
         PollSensors();
         SensorTimer = millis();
+        int XivelyResp = SendtoXively();
+        Serial.println(XivelyResp);
     }
     
     if (DoorStateChanged)
@@ -95,6 +106,7 @@ void loop()
         Serial.println(millis() - CurrentMilliSec);
         sprintf(SensorData,"{\"Ambient_Temperature\":%.2f, \"Humidity\":%.2f,\"Door_State\":%d}",AmbTempCurrent, HumidityCurrent, DoorState);
         Spark.publish("SensorData",SensorData);
+        
         
 //        if (DoorState == HIGH)
 //        {
@@ -107,6 +119,131 @@ void loop()
 //            Spark.publish("Door-State", "Closed", 60, PRIVATE);
 //        }
     }
+}
+
+int SendtoXively()
+{
+    Serial.println("Connecting to server...");
+    if (client.connect("api.xively.com", 8081))
+    {
+        // Connection succesful, update datastreams
+        Serial.println("Connected to server succesfully");
+        
+//        Serial.print("{");
+//        Serial.print("  \"method\" : \"put\",");
+//        Serial.print("  \"resource\" : \"/feeds/");
+//        Serial.print(FEED_ID);
+//        Serial.print("\",");
+//        Serial.print("  \"params\" : {},");
+//        Serial.print("  \"headers\" : {\"X-ApiKey\":\"");
+//        Serial.print(XIVELY_API_KEY);
+//        Serial.print("\"},");
+//        Serial.print("  \"body\" :");
+//        Serial.print("    {");
+//        Serial.print("      \"version\" : \"1.0.0\",");
+//        Serial.print("      \"datastreams\" : [");
+//        Serial.print("        {");
+//        Serial.print("          \"id\" : \"Humidity\",");
+//        Serial.print("          \"current_value\" : \"");
+//        Serial.print(HumidityCurrent);
+//        Serial.print("\"");
+//        Serial.print("        },");
+//        Serial.print("        {");
+//        Serial.print("          \"id\" : \"Ambient_Temperature\",");
+//        Serial.print("          \"current_value\" : \"");
+//        Serial.print(AmbTempCurrent);
+//        Serial.print("\"");
+//        Serial.print("        }");
+//        Serial.print("      ]");
+//        Serial.print("    },");
+//        Serial.print("  \"token\" : \"0x12345\"");
+//        Serial.print("}");
+//        Serial.println();
+        
+        client.print("{");
+        client.print("  \"method\" : \"put\",");
+        client.print("  \"resource\" : \"/feeds/");
+        client.print(FEED_ID);
+        client.print("\",");
+        client.print("  \"params\" : {},");
+        client.print("  \"headers\" : {\"X-ApiKey\":\"");
+        client.print(XIVELY_API_KEY);
+        client.print("\"},");
+        
+        //Start of Body
+        client.print("  \"body\" :");
+        client.print("    {");
+        client.print("      \"version\" : \"1.0.0\",");
+        client.print("      \"datastreams\" : [");
+        
+        //Send Humidity value
+        client.print("        {");
+        client.print("          \"id\" : \"Humidity\",");
+        client.print("          \"current_value\" : \"");
+        client.print(HumidityCurrent);
+        client.print("\"");
+        client.print("        },");
+        
+        //Send Temperature value
+        client.print("        {");
+        client.print("          \"id\" : \"Ambient_Temperature\",");
+        client.print("          \"current_value\" : \"");
+        client.print(AmbTempCurrent);
+        client.print("\"");
+        client.print("        },");
+        
+        //Send Door State
+        client.print("        {");
+        client.print("          \"id\" : \"DoorState\",");
+        client.print("          \"current_value\" : \"");
+        client.print(DoorState);
+        client.print("\"");
+        client.print("        }");
+        client.print("      ]");
+        client.print("    },");
+        
+        //End of body
+        client.print("  \"token\" : \"0x12345\"");
+        client.print("}");
+        client.println();
+    }
+    else
+    {
+        // Connection failed
+        Serial.println("connection failed");
+        return -1;
+    }
+    
+    //Wait for response from server
+    int RespTimer = 0;
+    while (!client.available())
+    {
+        RespTimer ++;
+        delay(10);
+        if (RespTimer > 100)
+        {
+            break;
+        }
+    }
+    
+    while (client.available())
+    {
+        // Read response
+        char c = client.read();
+        Serial.print(c);
+    }
+    
+    if (!client.connected())
+    {
+        //Serial.println();
+        Serial.println("disconnecting.");
+        client.stop();
+    }
+    
+    client.flush();
+    client.stop();
+    return 1;
+    
 }
                    
 int SetSensorParams(String Command)
