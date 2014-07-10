@@ -5,6 +5,7 @@
 #define XIVELY_API_KEY "IdehYY7vePi6Gf365Chtpidju7fh9xMFI2HpxEgD6oijrahQ"
 #define SendToXively "Yes"
 
+//Set time zone for South Africa
 
 // declaration for DHT11 handler
 int idDHT22pin = D4; //Digital pin for comunications
@@ -20,7 +21,7 @@ int DoorState = LOW;
 boolean DoorStateChanged = false;
 
 //Default SensorTime to 30sec
-unsigned long SensorPollTime = 10000;
+unsigned long SensorPollTime = 30000;
 unsigned long SensorTimer = millis();
 unsigned long CurrentMilliSec = 0;
 
@@ -54,6 +55,10 @@ TCPClient client;
 
 void setup()
 {
+    //Set time zone for South Africa
+    Time.zone(+2);
+    
+    //Setup pin for door monitoring
     pinMode(DoorPin,INPUT_PULLUP);
     attachInterrupt(DoorPin, PollDoor, CHANGE);
     
@@ -408,5 +413,6 @@ void PollSensors()
     
     sprintf(MessageString,"{ Uptime: \"Hours\": %u, \"Minutes\": %u, \"Seconds\": %u}",hours,min,sec);
     Serial.println(MessageString);
+    Serial.println(Time.timeStr());
     
 }
