@@ -278,8 +278,9 @@ void PollSensors()
     unsigned sec = nowSec%60;
     unsigned min = (nowSec%3600)/60;
     unsigned hours = (nowSec%86400)/3600;
+    unsigned days = (nowSec/86400);
     
-    sprintf(MessageString,"{ Uptime: \"Hours\": %u, \"Minutes\": %u, \"Seconds\": %u}",hours,min,sec);
+    sprintf(MessageString,"{ Uptime: \"Days\": %u,\"Hours\": %u, \"Minutes\": %u, \"Seconds\": %u}",days,hours,min,sec);
     Serial.println(MessageString);
     Serial.println(Time.timeStr());
     
